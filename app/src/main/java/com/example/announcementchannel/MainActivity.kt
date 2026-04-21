@@ -39,7 +39,6 @@ class MainActivity : ComponentActivity() {
                                         popUpTo("login") { inclusive = true }
                                     }
                                 },
-                                // Звідси переходимо на реєстрацію
                                 onNavigateToRegister = {
                                     navController.navigate("register")
                                 }

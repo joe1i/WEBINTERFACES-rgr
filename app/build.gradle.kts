@@ -66,4 +66,5 @@ dependencies {
     // OkHttp Logging Interceptor для перегляду логів API в консолі
     implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("io.coil-kt:coil-compose:2.5.0")
 }

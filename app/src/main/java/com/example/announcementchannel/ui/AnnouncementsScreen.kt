@@ -1,18 +1,28 @@
 package com.example.announcementchannel.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.announcementchannel.model.Announcement
 import com.example.announcementchannel.viewmodel.AnnouncementsViewModel
 
@@ -22,13 +32,38 @@ fun AnnouncementsScreen(viewModel: AnnouncementsViewModel) {
     val announcements by viewModel.announcements.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(
+        viewModel.currentOrdering,
+        viewModel.currentReactionFilter,
+        viewModel.minLikesFilter
+    ) {
+        listState.scrollToItem(0)
+    }
+
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         CenterAlignedTopAppBar(
             title = { Text("Оголошення") },
+            actions = {
+                // Кнопка для розгортання фільтрів
+                IconButton(onClick = { showFilters = !showFilters }) {
+                    Icon(
+                        imageVector = if (showFilters) Icons.Default.KeyboardArrowUp else Icons.Default.FilterList,
+                        contentDescription = "Фільтри"
+                    )
+                }
+            },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
             )
         )
+
+        AnimatedVisibility(visible = showFilters) {
+            FilterSection(viewModel = viewModel)
+        }
 
         if (isLoading && announcements.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -36,6 +71,7 @@ fun AnnouncementsScreen(viewModel: AnnouncementsViewModel) {
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -48,6 +84,9 @@ fun AnnouncementsScreen(viewModel: AnnouncementsViewModel) {
                         announcement = announcement,
                         onReactionClick = { reactionType ->
                             viewModel.toggleReaction(announcement.id, reactionType)
+                        },
+                        onViewed = {
+                            viewModel.markAsViewed(announcement.id)
                         }
                     )
                 }
@@ -59,15 +98,19 @@ fun AnnouncementsScreen(viewModel: AnnouncementsViewModel) {
 @Composable
 fun AnnouncementCard(
     announcement: Announcement,
-    onReactionClick: (String) -> Unit
+    onReactionClick: (String) -> Unit,
+    onViewed: () -> Unit
 ) {
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
+    var isViewedLocally by rememberSaveable { mutableStateOf(false) }
+    var hasTextOverflow by rememberSaveable { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Заголовок
             Text(
                 text = announcement.title,
                 style = MaterialTheme.typography.titleLarge,
@@ -75,11 +118,51 @@ fun AnnouncementCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            if (!announcement.image.isNullOrEmpty()) {
+                val imageUrl = if (announcement.image.startsWith("http")) {
+                    announcement.image
+                } else {
+                    "http://192.168.0.190:8000${announcement.image}"
+                }
+
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Зображення оголошення",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Text(
                 text = announcement.content,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { textLayoutResult ->
+                    if (!isExpanded && textLayoutResult.hasVisualOverflow) {
+                        hasTextOverflow = true
+                    }
+                }
             )
-            Spacer(modifier = Modifier.height(16.dp))
+
+            if (!isViewedLocally) {
+                TextButton(
+                    onClick = {
+                        isExpanded = true
+                        isViewedLocally = true
+                        onViewed()
+                    },
+                    modifier = Modifier.align(Alignment.Start)
+                ) {
+                    Text(if (hasTextOverflow) "Показати більше" else "Позначити як прочитано")
+                }
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -144,5 +227,81 @@ fun ReactionButton(emoji: String, count: Int, isActive: Boolean, onClick: () -> 
         colors = ButtonDefaults.textButtonColors(containerColor = backgroundColor)
     ) {
         Text(text = "$emoji $count", style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterSection(viewModel: AnnouncementsViewModel) {
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 8.dp)) {
+
+        Text("Сортування:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 16.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = viewModel.currentOrdering == "-created_at",
+                onClick = { viewModel.changeSort("-created_at") },
+                label = { Text("Нові") }
+            )
+            FilterChip(
+                selected = viewModel.currentOrdering == "-views_count",
+                onClick = { viewModel.changeSort("-views_count") },
+                label = { Text("Популярні") }
+            )
+        }
+
+        Text("Топ за реакцією:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val reactions = listOf("like" to "👍", "heart" to "❤️", "fire" to "🔥", "sad" to "😢")
+            reactions.forEach { (type, emoji) ->
+                FilterChip(
+                    selected = viewModel.currentOrdering == "-${type}s_count",
+                    onClick = { viewModel.sortByReaction(type) },
+                    label = { Text("Топ $emoji") }
+                )
+            }
+        }
+
+        Text("Тільки з реакцією:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val reactions = listOf("like" to "👍", "heart" to "❤️", "fire" to "🔥", "sad" to "😢")
+            reactions.forEach { (type, emoji) ->
+                FilterChip(
+                    selected = viewModel.currentReactionFilter == type,
+                    onClick = { viewModel.toggleReactionFilter(type) },
+                    label = { Text("Тільки $emoji") }
+                )
+            }
+        }
+
+        Text("Мінімум лайків:", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val limits = listOf(1, 3, 5, 10)
+            FilterChip(
+                selected = viewModel.minLikesFilter == null,
+                onClick = { viewModel.updateMinLikesFilter(null) },
+                label = { Text("Всі") }
+            )
+            limits.forEach { limit ->
+                FilterChip(
+                    selected = viewModel.minLikesFilter == limit,
+                    onClick = { viewModel.updateMinLikesFilter(limit) },
+                    label = { Text("$limit+ 👍") }
+                )
+            }
+        }
     }
 }
