@@ -32,7 +32,6 @@ fun RegisterScreen(
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // Пам'ять полів
     var username by rememberSaveable { mutableStateOf("") }
     var firstName by rememberSaveable { mutableStateOf("") }
     var lastName by rememberSaveable { mutableStateOf("") }
@@ -40,7 +39,6 @@ fun RegisterScreen(
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
 
-    // Змінні для Статі (Випадаючий список)
     var gender by rememberSaveable { mutableStateOf("") }
     var expandedGender by rememberSaveable { mutableStateOf(false) }
     val genderMap = mapOf(
@@ -50,7 +48,6 @@ fun RegisterScreen(
     )
     val genderOptions = genderMap.keys.toList()
 
-    // Змінні для Дати народження (Календар)
     var birthDate by rememberSaveable { mutableStateOf("") }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
@@ -75,14 +72,12 @@ fun RegisterScreen(
         }
     }
 
-    // Діалог вибору дати (З'являється поверх екрана, коли showDatePicker = true)
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     showDatePicker = false
-                    // Конвертуємо мілісекунди з календаря у формат "YYYY-MM-DD" для сервера
                     datePickerState.selectedDateMillis?.let { millis ->
                         val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
                         birthDate = formatter.format(Date(millis))
@@ -147,10 +142,8 @@ fun RegisterScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        // РЯДОК ЗІ СТАТТЮ ТА ДАТОЮ
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // 1. Випадаючий список для статі
             ExposedDropdownMenuBox(
                 expanded = expandedGender,
                 onExpandedChange = { expandedGender = !expandedGender },
@@ -159,7 +152,7 @@ fun RegisterScreen(
                 OutlinedTextField(
                     value = gender,
                     onValueChange = {},
-                    readOnly = true, // Забороняємо ручний ввід
+                    readOnly = true,
                     label = { Text("Стать") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedGender) },
                     modifier = Modifier.menuAnchor()
@@ -180,11 +173,10 @@ fun RegisterScreen(
                 }
             }
 
-            // 2. Поле з календарем для дати
             OutlinedTextField(
                 value = birthDate,
                 onValueChange = {},
-                readOnly = true, // Забороняємо ручний ввід, тільки через календар
+                readOnly = true,
                 label = { Text("Дата нар.") },
                 modifier = Modifier.weight(1f),
                 trailingIcon = {
@@ -232,7 +224,6 @@ fun RegisterScreen(
         } else {
             Button(
                 onClick = {
-                    // Відправляємо дані у ViewModel
                     val serverGender = genderMap[gender] ?: ""
                     viewModel.register(
                         username, email, firstName, lastName,

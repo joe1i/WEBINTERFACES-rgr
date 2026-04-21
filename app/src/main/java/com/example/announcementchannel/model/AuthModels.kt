@@ -17,7 +17,7 @@ data class RegisterRequest(
     val email: String,
     @SerializedName("first_name") val firstName: String,
     @SerializedName("last_name") val lastName: String,
-    val gender: String?, // Знак питання означає, що поле необов'язкове
+    val gender: String?,
     @SerializedName("birth_date") val birthDate: String?,
     val password: String,
     @SerializedName("password_confirm") val passwordConfirm: String

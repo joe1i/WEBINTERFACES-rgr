@@ -50,7 +50,6 @@ class AuthViewModel : ViewModel() {
             _authState.value = AuthState.Loading
 
             try {
-                // Якщо gender або birthDate порожні, відправляємо null (щоб сервер не сварився)
                 val finalGender = gender.ifBlank { null }
                 val finalBirthDate = birthDate.ifBlank { null }
 
@@ -68,7 +67,7 @@ class AuthViewModel : ViewModel() {
                 val response = RetrofitClient.apiService.register(request)
 
                 if (response.isSuccessful) {
-                    login(email, pass) // Автоматичний вхід після успіху
+                    login(email, pass)
                 } else {
                     _authState.value = AuthState.Error("Помилка реєстрації: ${response.errorBody()?.string()}")
                 }
